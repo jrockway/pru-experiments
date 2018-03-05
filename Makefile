@@ -1,8 +1,8 @@
 PRU_CGT=/usr/share/ti/cgt-pru
 PROJ_NAME=pru
 LINKER_COMMAND_FILE=./AM335x_PRU.cmd
-LIBS=--library=lib/rpmsg_lib.lib
-INCLUDE=--include_path=include --include_path=include/am335x
+LIBS=--library=pru-support-package/lib/rpmsg_lib.lib
+INCLUDE=--include_path=pru-support-package/include --include_path=pru-support-package/include/am335x
 STACK_SIZE=0x100
 HEAP_SIZE=0x100
 GEN_DIR=gen
@@ -32,7 +32,4 @@ $(GEN_DIR)/%.object: %.c
 	$(PRU_CGT)/bin/clpru --include_path=$(PRU_CGT)/include $(INCLUDE) $(CFLAGS) -fe $@ $<
 
 .PHONY: all clean
-
-# Includes the dependencies that the compiler creates (-ppd and -ppa flags)
--include $(OBJECTS:%.object=%.pp)
 
