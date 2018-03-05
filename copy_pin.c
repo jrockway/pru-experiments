@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <pru_cfg.h>
 #include <pru_intc.h>
+#include <pru_iep.h>
 /* #include <rsc_types.h> */
 #include <pru_rpmsg.h>
 #include "resource_table_0.h"
@@ -35,7 +36,7 @@ volatile register uint32_t __R31;
 /* Buffer for sending data back to Linux. */
 uint8_t payload[RPMSG_BUF_SIZE];
 
-typedef enum { WAIT_RISE, SEND_RISE, WAIT_FALL, SEND_FALL } state_t;
+typedef enum { WAIT_RISE, WAIT_FALL, SEND_TIME } state_t;
 
 void main(void)
 {
@@ -43,9 +44,26 @@ void main(void)
   uint16_t src, dst, len;
   volatile uint8_t *status;
   state_t state = WAIT_RISE;
+  uint32_t rise, total;
 
   /* Allow OCP master port access by the PRU so the PRU can read external memories */
   CT_CFG.SYSCFG_bit.STANDBY_INIT = 0;
+
+  /* Disable counter */
+  CT_IEP.TMR_GLB_CFG_bit.CNT_EN = 0;
+
+  /* Clear overflow status register */
+  CT_IEP.TMR_GLB_STS_bit.CNT_OVF = 0x1;
+
+  /* Disable compensation */
+  CT_IEP.TMR_COMPEN_bit.COMPEN_CNT = 0x0;
+
+  /* Clear the status of all interrupts */
+  CT_INTC.SECR0 = 0xFFFFFFFF;
+  CT_INTC.SECR1 = 0xFFFFFFFF;
+
+  /* Enable counter */
+  CT_IEP.TMR_GLB_CFG = 0x11;
 
   /* Clear the status of the PRU-ICSS system event that the ARM will use to 'kick' us */
   CT_INTC.SICR_bit.STS_CLR_IDX = FROM_ARM_HOST;
@@ -82,32 +100,33 @@ void main(void)
   payload[2] = '\n';
   pru_rpmsg_send(&transport, dst, src, payload, 3);
 
+  /* Enable counter */
+  CT_IEP.TMR_GLB_CFG = 0x11;
+  CT_IEP.TMR_CNT = 0x0;
+  total = 0;
+  rise = 0;
+  
   while(1) {
     switch (state) {
     case WAIT_RISE:
       if ((__R31 & 2) >> 1 == 1) {
-        state = SEND_RISE;
+        total = CT_IEP.TMR_CNT;
+        CT_IEP.TMR_CNT = 0x0;
+        state = WAIT_FALL;
       }
-      break;
-    case SEND_RISE:
-      payload[0] = 'X';
-      payload[1] = '\n';
-      payload[2] = '\0';
-      pru_rpmsg_send(&transport, dst, src, payload, 3);
-      __R30 = 1;
-      state = WAIT_FALL;
       break;
     case WAIT_FALL:
       if ((__R31 & 2) == 0) {
-        state = SEND_FALL;
+        rise = CT_IEP.TMR_CNT;
+        state = SEND_TIME;
       }
       break;
-    case SEND_FALL:
-      payload[0] = 'Y';
-      payload[1] = '\n';
-      payload[2] = '\0';
-      pru_rpmsg_send(&transport, dst, src, payload, 3);
-      __R30 = 0;
+    case SEND_TIME:
+      payload[0] = 0;
+      payload[1] = 0;
+      *(int *)&payload[2] = total;
+      *(int *)&payload[6] = rise;
+      pru_rpmsg_send(&transport, dst, src, &payload, 10);
       state = WAIT_RISE;
       break;
     default:
