@@ -1,7 +1,8 @@
+#include <stdint.h>
+
 #include <pru_cfg.h>
 #include <pru_iep.h>
 #include <pru_intc.h>
-#include <stdint.h>
 /* #include <rsc_types.h> */
 #include "resource_table_0.h"
 #include <pru_rpmsg.h>
