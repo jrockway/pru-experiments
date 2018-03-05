@@ -95,10 +95,11 @@ void main(void)
     }
   }
 
-  payload[0] = 'o';
-  payload[1] = 'k';
-  payload[2] = '\n';
-  pru_rpmsg_send(&transport, dst, src, payload, 3);
+  payload[0] = 0;
+  payload[1] = 0;
+  *(int *)&payload[2] = 0;
+  *(int *)&payload[6] = 0;
+  pru_rpmsg_send(&transport, dst, src, payload, 10);
 
   /* Enable counter */
   CT_IEP.TMR_GLB_CFG = 0x11;
